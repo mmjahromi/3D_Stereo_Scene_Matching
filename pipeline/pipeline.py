@@ -540,6 +540,9 @@ class Pipeline:
         # never contribute a valid correspondence.
         # Both clips use the ORIGINAL extents so neither clip affects the other.
         crop_cfg = loc_cfg.get("spatial_crop", {})
+        # Capture full global bounds before any cropping for candidate validation.
+        _g_lo_full = global_raw.xyz.min(axis=0)
+        _g_hi_full = global_raw.xyz.max(axis=0)
         if crop_cfg.get("enabled", True):
             buf = crop_cfg.get("buffer_m", 50.0)
             local_raw_orig  = local_raw
@@ -552,9 +555,12 @@ class Pipeline:
             )
 
         # Pre-compute global map XYZ bounds for candidate validation.
-        # Used to reject transforms that place the local scan outside the map.
-        _g_lo = global_raw.xyz.min(axis=0)
-        _g_hi = global_raw.xyz.max(axis=0)
+        # Use the full (uncropped) global map bounds so scans at the map edge
+        # are not incorrectly rejected.  Add a configurable buffer to further
+        # tolerate local scans whose centroid slightly overshoots the map edge.
+        _bounds_buf = loc_cfg.get("bounds_buffer_m", 50.0)
+        _g_lo = _g_lo_full - _bounds_buf
+        _g_hi = _g_hi_full + _bounds_buf
 
         min_fitness    = loc_cfg.get("min_fitness", 0.05)
         bounds_axes    = [_AXIS_MAP[east_axis], _AXIS_MAP[north_axis]]  # XY by default

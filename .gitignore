@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pth
+*.pth.tar
+results/
+weights/
+data/*.ply
+data/*.pcd
+data/*.npz
+data/*.npy
+*.egg-info/
+.DS_Store

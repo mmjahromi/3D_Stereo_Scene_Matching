@@ -1,0 +1,120 @@
+pipeline:
+  mode: "benchmark"          # "benchmark" | "inference"
+  models: ["fpfh", "fgr"]
+  icp_refinement: true
+  output_dir: "results/"
+  visualize: false
+
+data:
+  mode: "custom_pairs"       # "3dmatch" | "custom_pairs"
+  custom_pairs:
+    pairs:
+      - src: "data/scene_a.npz"
+        tgt: "data/scene_b.npz"
+        gt_transform: "data/T_gt.npy"
+
+models:
+  fpfh:
+    voxel_size: 0.5               # 0.5 m voxel — reduces 3M-pt outdoor cloud to ~100-200K pts
+    skip_downsample: false
+    feature_radius: 5.0           # 10× voxel — outdoor scenes need large radius for context
+    normal_radius: 1.0            # 2× voxel
+    feature_max_nn: 150           # more neighbours for denser outdoor descriptions
+    normal_max_nn: 30
+    remove_outliers: true
+    outlier_nb_neighbors: 20
+    outlier_std_ratio: 2.0
+  shot:
+    voxel_size: 0.5
+    skip_downsample: false
+    shot_radius: 2.5              # SHOT neighbourhood radius (= 5× voxel)
+    normal_radius: 1.0
+    normal_max_nn: 30
+    max_keypoints: 4000           # ISS keypoints cap — controls speed vs coverage
+    remove_outliers: true
+    outlier_nb_neighbors: 20
+    outlier_std_ratio: 2.0
+  fgr:
+    voxel_size: 0.5
+    skip_downsample: false
+    feature_radius: 2.5
+    feature_max_nn: 100
+    normal_radius: 1.0
+    normal_max_nn: 30
+    icp_refinement: true
+  gicp:
+    voxel_size: 0.5               # same scale as fpfh/fgr
+    feature_radius: 2.5           # FPFH radius for global init
+    feature_max_nn: 100
+  color_icp:
+    voxel_size: 0.5
+    feature_radius: 2.5           # FPFH radius for global init
+    feature_max_nn: 100
+  fcgf:
+    voxel_size: 0.025
+    feature_dim: 32
+    weights_path: "weights/fcgf_3dmatch.pth"
+  geotransformer:
+    voxel_size: 0.025
+    weights_path: "weights/geotransformer-3dmatch.pth.tar"
+    config_path: null        # auto-detect from weights dir
+  predator:
+    voxel_size: 0.025
+    weights_path: "weights/predator_3dmatch.pth"
+    max_keypoints: 1000
+    overlap_threshold: 0.5
+
+matching:
+  method: "ratio_test"       # ratio_test gives 5-10× more correspondences than mutual_nn
+                             # critical for outdoor scenes where many features look similar
+  ratio_threshold: 0.90      # relaxed from 0.80 — outdoor FPFH features are less discriminative
+  use_faiss: false           # fallback to scipy cKDTree if false
+
+evaluation:
+  rre_threshold: 15.0        # degrees
+  rte_threshold: 0.30        # metres
+  compute_chamfer: false     # expensive — disable for large benchmarks
+
+registration:
+  global_method: "direct_gicp"  # "ransac" | "fgr" | "direct_gicp"
+                                 # direct_gicp: for same-CRS data (e.g. both UTM) — centroid
+                                 # init + multi-scale GICP, no feature matching needed
+                                 # fgr/ransac: for different-CRS data needing global alignment
+  refinement: "gicp"             # "icp" | "gicp" | "color_icp"
+  direct_gicp:
+    coarse_dist: 5.0    # starting correspondence distance (m)
+    fine_dist: 0.5      # final correspondence distance (m)
+    n_scales: 4         # number of distance steps
+    max_iter: 300       # GICP iterations per scale
+
+ransac:
+  max_iterations: 4000000
+  confidence: 0.999
+  ransac_n: 3
+  distance_threshold_factor: 6.0   # 6× voxel = 3 m — tolerates stereo depth noise
+
+z_correction:
+  enabled: false               # Disabled: ground was removed by segmentation.
+                               # Without ground points, neither ground_percentile nor
+                               # histogram_xcorr have a reliable Z anchor on building facades.
+                               # RANSAC + ICP already give the best Z estimate from the geometry.
+                               # Re-enable with method: "ground_percentile" if ground is present.
+  method: "ground_percentile"
+  z_axis: 2
+  percentile: 5.0
+  bin_size: 0.05
+  search_range: 10.0
+
+localization:
+  tile_size: 20.0            # XY tile side length (metres) — only used when forced
+  tile_overlap: 0.3
+  max_direct_points: 500000  # spatial clipping already shrinks global; skip tiling below this
+  top_k_tiles: 3             # evaluate top-K candidate tiles
+  min_tile_points: 200       # discard tiles with fewer points
+  n_ransac_runs: 10          # independent RANSAC runs for uncertainty estimation
+  east_axis: "x"             # ENU: X=East
+  north_axis: "y"            # ENU: Y=North
+  min_fitness: 0.02          # sparse stereo clouds have naturally low fitness — use 0.05 for LiDAR
+  spatial_crop:
+    enabled: true            # crop global map to local scan extent before processing
+    buffer_m: 50.0           # metres added around local bbox on every axis

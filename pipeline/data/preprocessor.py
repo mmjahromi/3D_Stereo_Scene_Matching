@@ -78,8 +78,18 @@ def preprocess(
                 radius=radius, max_nn=normal_max_nn
             )
         )
-        # Orient normals to be consistent (essential for good FPFH)
+        # Step 1: globally consistent orientation (arbitrary sign).
         pcd_down.orient_normals_consistent_tangent_plane(k=15)
+
+        # Step 2: fix global sign ambiguity by orienting toward the centroid.
+        # orient_normals_consistent_tangent_plane gives consistent RELATIVE
+        # orientation but the overall sign (all-inward vs all-outward) is
+        # arbitrary and differs between clouds — which flips FPFH features.
+        # Orienting toward the centroid (camera at [0,0,0] after centering)
+        # locks the global convention to "normals point inward" for both clouds.
+        pcd_down.orient_normals_towards_camera_location(
+            camera_location=np.array([0.0, 0.0, 0.0])
+        )
 
         # Restore original coordinates
         pcd_down.points = o3d.utility.Vector3dVector(

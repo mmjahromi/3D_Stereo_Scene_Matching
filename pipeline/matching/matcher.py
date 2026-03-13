@@ -384,7 +384,7 @@ def icp_refinement(
     if tgt.normals is not None:
         tgt_pcd.normals = o3d.utility.Vector3dVector(tgt.normals.astype(np.float64))
 
-    dist_thr = voxel_size * 1.0
+    dist_thr = voxel_size * 2.0   # 2× voxel gives ICP room to converge from RANSAC quality init
 
     use_p2plane = (
         point_to_plane and tgt.normals is not None and len(tgt.normals) == len(tgt.xyz)

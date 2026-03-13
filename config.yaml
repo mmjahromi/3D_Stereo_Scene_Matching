@@ -1,12 +1,26 @@
 pipeline:
   mode: "benchmark"          # "benchmark" | "inference"
-  models: ["fpfh", "fgr"]
-  icp_refinement: true
+  models: ["fpfh"]
+  icp_refinement: false
   output_dir: "results/"
   visualize: false
 
 data:
-  mode: "custom_pairs"       # "3dmatch" | "custom_pairs"
+  mode: "3dmatch"
+  benchmark_path: "data/3dmatch"
+  scenes: ["7-scenes-redkitchen"]
+  min_overlap: 0.3
+  max_pairs_per_scene: null
+  max_fragment_gap: 1        # consecutive fragments only (t == s+1): 57 pairs, ~15° avg rotation
+
+# --- 3DMatch benchmark (full run) ---
+# data:
+#   mode: "3dmatch"
+#   benchmark_path: "data/3dmatch"
+#   scenes: null          # null = all 8; or list e.g. ["7-scenes-redkitchen"]
+#   min_overlap: 0.3      # 0.3 = standard 3DMatch; 0.1 = include 3DLoMatch pairs
+#   max_pairs_per_scene: null
+
   custom_pairs:
     pairs:
       - src: "data/scene_a.npz"
@@ -15,15 +29,13 @@ data:
 
 models:
   fpfh:
-    voxel_size: 0.5               # 0.5 m voxel — reduces 3M-pt outdoor cloud to ~100-200K pts
+    voxel_size: 0.025             # 3DMatch standard: 2.5 cm voxel
     skip_downsample: false
-    feature_radius: 5.0           # 10× voxel — outdoor scenes need large radius for context
-    normal_radius: 1.0            # 2× voxel
-    feature_max_nn: 150           # more neighbours for denser outdoor descriptions
+    feature_radius: 0.125         # 5× voxel = 12.5 cm
+    normal_radius: 0.05           # 2× voxel = 5 cm
+    feature_max_nn: 100
     normal_max_nn: 30
-    remove_outliers: true
-    outlier_nb_neighbors: 20
-    outlier_std_ratio: 2.0
+    remove_outliers: false        # keep all points for 3DMatch
   shot:
     voxel_size: 0.5
     skip_downsample: false
@@ -65,9 +77,8 @@ models:
     overlap_threshold: 0.5
 
 matching:
-  method: "ratio_test"       # ratio_test gives 5-10× more correspondences than mutual_nn
-                             # critical for outdoor scenes where many features look similar
-  ratio_threshold: 0.90      # relaxed from 0.80 — outdoor FPFH features are less discriminative
+  method: "mutual_nn"        # mutual_nn is standard for 3DMatch indoor benchmarks
+  ratio_threshold: 0.80
   use_faiss: false           # fallback to scipy cKDTree if false
 
 evaluation:
@@ -76,7 +87,7 @@ evaluation:
   compute_chamfer: false     # expensive — disable for large benchmarks
 
 registration:
-  global_method: "direct_gicp"  # "ransac" | "fgr" | "direct_gicp"
+  global_method: "ransac"       # "ransac" | "fgr" | "direct_gicp"
                                  # direct_gicp: for same-CRS data (e.g. both UTM) — centroid
                                  # init + multi-scale GICP, no feature matching needed
                                  # fgr/ransac: for different-CRS data needing global alignment
@@ -91,7 +102,7 @@ ransac:
   max_iterations: 4000000
   confidence: 0.999
   ransac_n: 3
-  distance_threshold_factor: 6.0   # 6× voxel = 3 m — tolerates stereo depth noise
+  distance_threshold_factor: 3.0   # 3× voxel = 7.5 cm for 3DMatch indoor
 
 z_correction:
   enabled: false               # Disabled: ground was removed by segmentation.

@@ -476,12 +476,22 @@ class Pipeline:
 
     def _collect_3dmatch_pairs(self, data_cfg: dict):
         """Collect pairs from a 3DMatch benchmark split."""
+        from pipeline.data.threedmatch import collect_benchmark_pairs
+
         benchmark_path = data_cfg.get("benchmark_path", "data/3dmatch")
-        log.warning(
-            "3DMatch benchmark loading not yet implemented. "
-            f"Expecting benchmark at '{benchmark_path}'."
+        scenes = data_cfg.get("scenes", None)
+        min_overlap = float(data_cfg.get("min_overlap", 0.0))
+        max_pairs_per_scene = data_cfg.get("max_pairs_per_scene", None)
+
+        max_fragment_gap = data_cfg.get("max_fragment_gap", None)
+
+        return collect_benchmark_pairs(
+            benchmark_path=benchmark_path,
+            scenes=scenes,
+            min_overlap=min_overlap,
+            max_pairs_per_scene=max_pairs_per_scene,
+            max_fragment_gap=max_fragment_gap,
         )
-        return []
 
     # ------------------------------------------------------------------
     # Localization API

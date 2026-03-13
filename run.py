@@ -181,8 +181,9 @@ def main(argv: Optional[list] = None) -> int:
         return 0
 
     # --- Normal run ---------------------------------------------------------
+    data_mode = cfg.get("data", {}).get("mode", "custom_pairs")
     pairs = cfg.get("data", {}).get("custom_pairs", {}).get("pairs", [])
-    if not pairs and not (args.src and args.tgt):
+    if not pairs and not (args.src and args.tgt) and data_mode == "custom_pairs":
         log.error(
             "No pairs specified. Either use --src/--tgt flags, "
             "--local/--global for localization, or configure "
